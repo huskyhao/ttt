@@ -1,0 +1,54 @@
+name: Issue 1033 Linux validation
+
+on:
+  push:
+    branches: [codex/issue-1033-linux-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: ./scripts/install-prerequisites.sh
+      - run: go build ./...
+      - id: tests
+        run: make test
+      - run: go vet ./...
+      - name: Compare the unmodified base if tests fail
+        if: failure() && steps.tests.outcome == 'failure'
+        run: |
+          git worktree add "$RUNNER_TEMP/ttt-base" 8a722e15d350ec95396c5507ea277a463bca4653
+          cd "$RUNNER_TEMP/ttt-base"
+          make test
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+      - run: make lint
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: ./scripts/install-prerequisites.sh
+      - run: go test -race ./...

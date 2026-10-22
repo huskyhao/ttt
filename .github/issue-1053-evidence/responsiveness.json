@@ -1,0 +1,14 @@
+{
+  "baseline": {
+    "responsive_while_scan_blocked": false,
+    "showed_cancel": false,
+    "file_unchanged": true,
+    "exit_code": 0
+  },
+  "fixed": {
+    "responsive_while_scan_blocked": true,
+    "showed_cancel": true,
+    "file_unchanged": true,
+    "exit_code": 0
+  }
+}

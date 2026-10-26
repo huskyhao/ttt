@@ -1,0 +1,51 @@
+name: Issue 1220 Linux validation
+
+on:
+  push:
+    branches: [codex/issue-1220-linux-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: ./scripts/install-prerequisites.sh
+      - run: go build ./...
+      - run: make test
+      - run: go vet ./...
+      - run: make build
+      - run: python3 .github/issue-1220-evidence/smoke_linux.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: issue-1220-real-binary
+          path: .github/issue-1220-evidence/linux-results/
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: ./scripts/install-prerequisites.sh
+      - run: go test -race ./...

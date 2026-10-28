@@ -1,0 +1,20 @@
+{
+  "binary": "ttt",
+  "language": "go",
+  "expected_diagnostic_col": 42,
+  "diagnostic_col": 42,
+  "expected_definition_col": 24,
+  "definition_cursor": {
+    "line": 2,
+    "col": 24
+  },
+  "hover_nonempty": true,
+  "rename_text": [
+    "package main",
+    "",
+    "func main() { _ = \"😀😀\"; renamed := 42; _ = missing; _ = renamed }",
+    ""
+  ],
+  "hover_wire_col": 59,
+  "expected_hover_wire_col": 59
+}

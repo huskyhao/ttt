@@ -1,0 +1,18 @@
+{
+  "binary": "ttt",
+  "language": "typescript",
+  "expected_diagnostic_col": 52,
+  "diagnostic_col": 52,
+  "expected_definition_col": 24,
+  "definition_cursor": {
+    "line": 0,
+    "col": 24
+  },
+  "hover_nonempty": true,
+  "rename_text": [
+    "const emoji = \"😀😀\"; let renamed = 42; const broken = missing; console.log(renamed);",
+    ""
+  ],
+  "hover_wire_col": 77,
+  "expected_hover_wire_col": 77
+}

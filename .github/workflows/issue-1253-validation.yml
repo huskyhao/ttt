@@ -1,0 +1,59 @@
+name: Issue 1253 Linux validation
+
+on:
+  push:
+    branches: [codex/issue-1253-linux-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: go build ./...
+      - run: make test
+      - run: go vet ./...
+      - run: make build
+      - name: Headless binary smoke
+        run: |
+          export TTT_CONFIG_DIR="$RUNNER_TEMP/ttt-1253-config"
+          mkdir -p "$TTT_CONFIG_DIR"
+          printf '{"lsp":{"enabled":false}}\n' > "$TTT_CONFIG_DIR/settings.json"
+          bin/ttt internal/lsp/position.go --size 120x35 --exec "screenshot $RUNNER_TEMP/ttt-1253-screen.txt; quit"
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: go test -race ./...

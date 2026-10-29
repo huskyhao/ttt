@@ -1,0 +1,78 @@
+name: Issue 1273 Linux validation
+
+on:
+  push:
+    branches: [feat/explorer-context-open-compact-segment-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: go build ./...
+      - run: make test
+      - run: go vet ./...
+      - run: make build
+      - name: Real-binary compact segment Open
+        run: |
+          export TTT_CONFIG_DIR="$RUNNER_TEMP/ttt-1273-config"
+          fixture="$RUNNER_TEMP/ttt-1273-workspace"
+          mkdir -p "$TTT_CONFIG_DIR" "$fixture/src/main/java/util"
+          printf '{"explorer":{"compactFolders":true},"plugins":{"enabled":false},"lsp":{"enabled":false}}\n' > "$TTT_CONFIG_DIR/settings.json"
+          printf 'example\n' > "$fixture/src/main/java/Example.txt"
+          printf 'helper\n' > "$fixture/src/main/java/util/Helper.txt"
+          printf 'fixture\n' > "$fixture/README.md"
+          bin/ttt "$fixture" --size 100x28 --exec "exec \"Show Explorer\"; click 5 5; rclick 5 5; key Enter; screenshot $RUNNER_TEMP/after.txt; rclick 5 5; key Enter; screenshot $RUNNER_TEMP/reopened.txt; quit"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          after = (root / 'after.txt').read_text()
+          reopened = (root / 'reopened.txt').read_text()
+          assert '▸ src ' in after and 'src/main/java' not in after, after
+          assert '▾ src ' in reopened and '▾ main/java' in reopened and 'Example.txt' in reopened, reopened
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue-1273-binary-captures
+          path: |
+            ${{ runner.temp }}/after.txt
+            ${{ runner.temp }}/reopened.txt
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+  race:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: go test -race ./...

@@ -1,0 +1,79 @@
+name: Issue 1283 Linux validation
+
+on:
+  push:
+    branches: [feat/manual-syntax-language-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: go build ./...
+      - run: make test
+      - run: go vet ./...
+      - run: make build
+      - name: Real-binary language selection
+        run: |
+          export TTT_CONFIG_DIR="$RUNNER_TEMP/ttt-1283-config"
+          fixture="$RUNNER_TEMP/.bash_aliases"
+          mkdir -p "$TTT_CONFIG_DIR"
+          printf '{"plugins":{"enabled":false},"lsp":{"enabled":false}}\n' > "$TTT_CONFIG_DIR/settings.json"
+          printf "alias ll='ls -la'\n" > "$fixture"
+          bin/ttt "$fixture" --size 100x28 --exec "exec \"Change Language Mode\"; type Shell; key Down; key Down; key Enter; screenshot $RUNNER_TEMP/shell.txt; exec \"Change Language Mode\"; type Plain Text; key Enter; screenshot $RUNNER_TEMP/plain.txt; exec \"Change Language Mode\"; type Auto Detect; key Enter; screenshot $RUNNER_TEMP/auto.txt; quit"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+          root = Path(os.environ['RUNNER_TEMP'])
+          for name, language in [('shell', 'Shell'), ('plain', 'Plain Text'), ('auto', 'Plain Text')]:
+              screen = (root / (name + '.txt')).read_text()
+              assert language in screen.splitlines()[-1], screen
+          PY
+      - uses: actions/upload-artifact@v7
+        with:
+          name: issue-1283-binary-captures
+          path: |
+            ${{ runner.temp }}/shell.txt
+            ${{ runner.temp }}/plain.txt
+            ${{ runner.temp }}/auto.txt
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+        with:
+          version: '11'
+      - uses: actions/setup-node@v7
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: docs-web/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+        working-directory: docs-web
+      - run: pnpm build
+        working-directory: docs-web

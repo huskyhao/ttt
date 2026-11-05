@@ -1,0 +1,48 @@
+name: Issue 1358 Linux validation
+
+on:
+  push:
+    branches: [feat/issue-1358-async-file-links-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: make build
+      - run: make test
+      - run: go vet ./...
+      - name: Link regressions under the race detector
+        run: go test -race ./internal/ui ./internal/app ./tests/e2e -run 'Test(Editor.*Link|DetectLink|FileLineRe|ResolveFilePath|LinksForLine|Terminal.*Link)' -count=1
+      - name: Real binary render and input
+        run: |
+          mkdir -p "$RUNNER_TEMP/link-smoke/config"
+          printf 'target.txt:2:3 https://example.com\n' > "$RUNNER_TEMP/link-smoke/links.txt"
+          printf 'first\nsecond target\n' > "$RUNNER_TEMP/link-smoke/target.txt"
+          export TTT_CONFIG_DIR="$RUNNER_TEMP/link-smoke/config"
+          bin/ttt --size 100x25 --exec "wait-for target.txt:2:3; key end; type X; screenshot $RUNNER_TEMP/link-smoke/screen.txt; debug $RUNNER_TEMP/link-smoke/state.json; quit" "$RUNNER_TEMP/link-smoke/links.txt"
+          grep -F 'target.txt:2:3 https://example.comX' "$RUNNER_TEMP/link-smoke/screen.txt"
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0

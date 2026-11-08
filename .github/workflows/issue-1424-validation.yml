@@ -1,0 +1,45 @@
+name: Issue 1424 Linux validation
+
+on:
+  push:
+    branches: [feat/issue-1424-check-updates-validation]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - name: Install ripgrep
+        run: |
+          curl -fsSL --retry 2 --max-time 60 -o "$RUNNER_TEMP/rg.tar.gz" https://github.com/BurntSushi/ripgrep/releases/download/14.1.1/ripgrep-14.1.1-x86_64-unknown-linux-musl.tar.gz
+          tar -xzf "$RUNNER_TEMP/rg.tar.gz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/ripgrep-14.1.1-x86_64-unknown-linux-musl" >> "$GITHUB_PATH"
+      - run: make build VERSION=dev
+      - run: make test
+      - run: go vet ./...
+      - name: Update and restart regressions with race detector
+        run: go test -race ./internal/update ./internal/app ./tests/e2e ./cmd/ttt -run 'TestUpdate|TestPackageManager|TestCompareVersions|TestAssetName|TestDetectMethod|TestParseChecksums|TestLatest|TestBinaryReplacement|TestCommandOutput|Test.*Quit|TestRestart' -count=1
+      - name: Cross-platform builds
+        run: |
+          for target in linux/arm64 darwin/amd64 darwin/arm64 freebsd/amd64 freebsd/arm64 windows/amd64 windows/arm64; do
+            GOOS=${target%/*} GOARCH=${target#*/} CGO_ENABLED=0 go build -o "$RUNNER_TEMP/ttt-${target%/*}-${target#*/}" ./cmd/ttt
+          done
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.25.14'
+      - run: make fmt-check
+      - uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.15.0
